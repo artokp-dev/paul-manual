@@ -1,0 +1,13 @@
+# 영상·사진은 절대 커밋하지 않는다 (공개 저장소 + 보호자·환자 개인정보)
+work/
+*.mp4
+*.mov
+*.MOV
+*.m4v
+*.heic
+*.HEIC
+*.jpg
+*.jpeg
+*.png
+!assets/**/*.png
+__pycache__/

@@ -1,0 +1,15 @@
+{
+  "output": "work/out/2026-10-11_새벽3시.mp4",
+  "clips": [
+    {"src": "work/in/IMG_0001.MOV", "start": 0.0, "end": 2.5},
+    {"src": "work/in/IMG_0002.MOV", "start": 1.0, "end": 5.0, "speed": 1.5},
+    {"src": "work/in/IMG_0003.MOV", "start": 0.0, "end": 4.0, "fit": "blur"},
+    {"src": "work/in/IMG_0004.MOV", "start": 2.0, "end": 5.0, "zoom": 1.15, "x": 0.4}
+  ],
+  "texts": [
+    {"start": 0.0, "end": 2.5, "style": "hook", "text": "새벽 3시,\n*24시 병원*에 생기는 일"},
+    {"start": 2.5, "end": 5.2, "style": "sub", "text": "양말을 *통째로* 삼킨 손님 등장"},
+    {"start": 5.2, "end": 9.2, "style": "box", "text": "삼킨 지 2시간 안이면\n*토하게 하는 처치*가 가능할 수 있어요"},
+    {"start": 9.2, "end": null, "style": "end", "text": "오늘도 무사히 퇴원"}
+  ]
+}
