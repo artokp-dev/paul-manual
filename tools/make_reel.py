@@ -10,7 +10,9 @@
     src, start, end(생략하면 끝까지), speed(0.5~4), volume, mute,
     fit("crop" 꽉 채우기 | "blur" 전체 보이게+흐린 배경), zoom(1 이상), x(0~1, 가로 크롭 위치)
 - texts: 완성 영상 기준 시간에 얹을 글자
-    start, end(null이면 끝까지), text("\n" 줄바꿈, *강조* 노란색), style, y, size
+    start, end(null이면 끝까지), text("\n" 줄바꿈), style(기본 "paul"), y, size
+    "paul"은 @24paulah 기존 스타일: 흰 글씨 + 검은 둥근 상자(인스타 앱 텍스트 배경과 같은 모양).
+    다른 스타일(hook, sub, box, end, small)은 *강조* 노란색을 쓸 수 있다. 실험용.
 - 음악은 넣지 않는다. 인스타 앱에서 원장님이 직접 얹는다.
 """
 import argparse
@@ -30,6 +32,10 @@ MAX_TEXT_W = 880  # 오른쪽 버튼·가장자리 피해서
 # y는 글자 덩어리의 세로 중심 (화면 높이 비율).
 # 인스타가 위 ~13%, 아래 ~25%를 계정명·캡션으로 가리므로 그 사이에 둔다.
 STYLES = {
+    # @24paulah 기존 스타일 (2026-10 계정 분석): 보통 굵기, 강조색·테두리 없음, 줄마다 검은 상자.
+    # 기본 위치는 세로 75%, 처치 동작이 아래쪽이면 0.20~0.25로 올린다. 0.80 아래는 앱 캡션에 가린다.
+    "paul": dict(font="Pretendard-Medium.otf", size=70, stroke=0, y=0.75, box="lines", gap=1.45,
+                 accent=False),
     "hook": dict(font="Pretendard-Black.otf", size=92, stroke=10, y=0.30, box=False, gap=1.18),
     "sub": dict(font="Pretendard-Bold.otf", size=60, stroke=7, y=0.66, box=False, gap=1.22),
     "box": dict(font="Pretendard-Bold.otf", size=54, stroke=0, y=0.66, box=True, gap=1.32),
@@ -112,7 +118,7 @@ def segments(line):
 
 
 def render_text(item, path):
-    st = dict(STYLES[item.get("style", "sub")])
+    st = dict(STYLES[item.get("style", "paul")])
     size = item.get("size", st["size"])
     font = ImageFont.truetype(os.path.join(FONT_DIR, st["font"]), size)
     stroke = round(st["stroke"] * size / st["size"])
@@ -129,7 +135,15 @@ def render_text(item, path):
     draw = ImageDraw.Draw(img)
     widths = [font.getlength("".join(c for c, _ in ln)) for ln in lines]
 
-    if st["box"]:
+    if st["box"] == "lines":
+        # 인스타 텍스트 배경처럼 줄마다 폭이 다른 상자를 위아래로 붙인다.
+        pad_x, radius = size * 0.5, size * 0.35
+        for i, w_ in enumerate(widths):
+            draw.rounded_rectangle(
+                [(W - w_) / 2 - pad_x, top + line_h * i,
+                 (W + w_) / 2 + pad_x, top + line_h * (i + 1)],
+                radius=radius, fill=(0, 0, 0, 255))
+    elif st["box"]:
         pad_x, pad_y = 36, 26
         bw = max(widths) + pad_x * 2
         draw.rounded_rectangle(
@@ -149,7 +163,7 @@ def render_text(item, path):
                               stroke_width=stroke, stroke_fill=OUTLINE)
                 else:
                     draw.text((x, y), seg, font=font, anchor="lm",
-                              fill=ACCENT if acc else WHITE)
+                              fill=ACCENT if acc and st.get("accent", True) else WHITE)
                 x += font.getlength(seg)
     img.save(path)
 
