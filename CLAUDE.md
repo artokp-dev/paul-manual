@@ -39,10 +39,14 @@ PC의 Claude는 구글 드라이브가 G: 드라이브로 연결돼 있어 원�
 
 1. **영상 받기** → `work/in/`
    - 채팅에 첨부된 영상이 있으면 그것을 쓴다 (`/root/.claude/uploads/...` 경로로 들어온다. 가장 쉬운 방법).
-   - 드라이브 `01_원본` 폴더라면: 커넥터 `search_files`로 `parentId = '<01 폴더 ID>'` 최신 파일을 찾고,
-     `pip install gdown` 후 `gdown <파일ID> -O work/in/` 로 받는다.
-     이 방법은 네트워크가 drive.google.com에 닿고(환경 설정 Network access) 폴더가 "링크가 있는 모든 사용자"로 공유돼 있어야 한다.
-     실패하면 원장님께 무엇이 필요한지 한두 줄로 쉽게 말한다. 키를 채팅에 붙여넣으라고 하지 않는다.
+   - 드라이브 `릴스_원본` 폴더라면 (2026-11-05 확인된 방법):
+     1. 커넥터 `search_files`로 `parentId = '<폴더 ID>'` 파일 목록(ID·크기)을 얻는다.
+     2. 폴더가 "링크가 있는 모든 사용자(뷰어)"로 공유돼 있어야 한다. 안 돼 있으면 원장님께 드라이브 앱에서
+        폴더 ⋮ → 공유 → 일반 액세스 → "링크가 있는 모든 사용자"로 바꿔 달라고 한다. 끝나면 "제한됨"으로 되돌려도 된다고 알린다.
+     3. `curl -sS -L -o work/in/<날짜>/<이름> "https://drive.usercontent.google.com/download?id=<ID>&export=download&confirm=t"`
+        (gdown은 안 된다: 실제 파일이 오는 *.googleusercontent.com 주소가 네트워크에서 막혀 있음). `xargs -P 4`로 4개씩 동시에.
+     4. 받은 크기가 드라이브의 fileSize와 같은지 확인한다.
+   - 원본이 많으면: 영상마다 8장씩 한 줄로 모은 전체 보기를 먼저 만들어 훑고, 쓸 만한 것만 `tools/sheet.py`로 자세히 본다.
 2. **영상 보기**: `python3 tools/sheet.py work/in/<파일>` → 나온 장면 모음 이미지를 Read로 직접 본다.
    원장님 메모(누가, 무슨 상황)와 합쳐 내용을 파악한다. 대사가 중요한데 알아들을 수 없으면 원장님께 묻는다.
    소리 크기도 본다: `ffmpeg -i <파일> -af volumedetect -vn -f null -`.
