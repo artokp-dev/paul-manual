@@ -8,7 +8,9 @@
 계획 형식은 tools/example_plan.json 참고.
 - clips: 원본에서 잘라 쓸 구간들 (순서대로 이어 붙임)
     src, start, end(생략하면 끝까지), speed(0.5~4), volume, mute,
-    fit("crop" 꽉 채우기 | "blur" 전체 보이게+흐린 배경), zoom(1 이상), x(0~1, 가로 크롭 위치)
+    fit("crop" 꽉 채우기 | "blur" 전체 보이게+흐린 배경), zoom(1 이상), x(0~1, 가로 크롭 위치),
+    hide: 모자이크로 가릴 곳 목록 [[x, y, w, h], ...] (완성 화면 기준 0~1 비율)
+          — 모니터 화면, 차트, 보호자 얼굴처럼 나오면 안 되는 것
 - texts: 완성 영상 기준 시간에 얹을 글자
     start, end(null이면 끝까지), text("\n" 줄바꿈), style(기본 "paul"), y, size
     "paul"은 @24paulah 기존 스타일: 흰 글씨 + 검은 둥근 상자(인스타 앱 텍스트 배경과 같은 모양).
@@ -197,7 +199,7 @@ def atempo_chain(speed):
     return ",".join(parts)
 
 
-def video_chain(clip, info):
+def video_chain(clip, info, idx):
     f = []
     # 아이폰 HDR(HLG/PQ)을 그대로 줄이면 색이 바래니 일반 색으로 변환한다.
     if info["transfer"] in ("arib-std-b67", "smpte2084"):
@@ -213,13 +215,24 @@ def video_chain(clip, info):
     fill = (f"scale={zw}:{zh}:force_original_aspect_ratio=increase,"
             f"crop={W}:{H}:(iw-{W})*{x}:(ih-{H})/2")
     if clip.get("fit", "crop") == "blur":
-        f.append(f"split[bg][fg];"
-                 f"[bg]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
-                 f"boxblur=12:2,eq=brightness=-0.08,scale={W}:{H}[bgb];"
-                 f"[fg]scale={W}:{H}:force_original_aspect_ratio=decrease[fgs];"
-                 f"[bgb][fgs]overlay=(W-w)/2:(H-h)/2")
+        # 라벨은 클립마다 달라야 한다 (같은 이름이 두 번 나오면 ffmpeg가 거부한다).
+        f.append(f"split[bg{idx}][fg{idx}];"
+                 f"[bg{idx}]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
+                 f"boxblur=12:2,eq=brightness=-0.08,scale={W}:{H}[bgb{idx}];"
+                 f"[fg{idx}]scale={W}:{H}:force_original_aspect_ratio=decrease[fgs{idx}];"
+                 f"[bgb{idx}][fgs{idx}]overlay=(W-w)/2:(H-h)/2")
     else:
         f.append(fill)
+    # 가릴 곳: 잘라서 아주 작게 줄였다가 다시 키우면 모자이크가 된다.
+    for k, (hx, hy, hw, hh) in enumerate(clip.get("hide", [])):
+        px, py = int(hx * W) // 2 * 2, int(hy * H) // 2 * 2
+        pw, ph = max(2, int(hw * W) // 2 * 2), max(2, int(hh * H) // 2 * 2)
+        tag = f"{idx}_{k}"
+        f.append(f"split[hm{tag}][hs{tag}];"
+                 f"[hs{tag}]crop={pw}:{ph}:{px}:{py},"
+                 f"scale={max(1, pw // 40)}:{max(1, ph // 40)},"
+                 f"scale={pw}:{ph}:flags=neighbor[hp{tag}];"
+                 f"[hm{tag}][hp{tag}]overlay={px}:{py}")
     f.append(f"fps={FPS},setsar=1,format=yuv420p")
     return ",".join(f)
 
@@ -245,7 +258,7 @@ def build(plan, tmp, still=None, out_path=None):
 
         vi = next_index()
         inputs += ["-ss", f"{start}", "-to", f"{end}", "-i", src]
-        chains.append(f"[{vi}:v]{video_chain(clip, info)}[v{i}]")
+        chains.append(f"[{vi}:v]{video_chain(clip, info, i)}[v{i}]")
 
         if info["audio"] and not clip.get("mute"):
             a = [f"[{vi}:a]aresample=48000,aformat=channel_layouts=stereo"]
