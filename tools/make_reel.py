@@ -9,6 +9,7 @@
 - clips: 원본에서 잘라 쓸 구간들 (순서대로 이어 붙임)
     src, start, end(생략하면 끝까지), speed(0.5~4), volume, mute,
     fit("crop" 꽉 채우기 | "blur" 전체 보이게+흐린 배경), zoom(1 이상), x(0~1, 가로 크롭 위치),
+    hold: 초 — start 시점 한 장면을 멈춰서 그만큼 보여준다 (결과지·화면처럼 읽어야 하는 장면). end·speed는 무시
     hide: 모자이크로 가릴 곳 목록 [[x, y, w, h], ...] (완성 화면 기준 0~1 비율)
           — 모니터 화면, 차트, 보호자 얼굴처럼 나오면 안 되는 것
 - texts: 완성 영상 기준 시간에 얹을 글자
@@ -201,13 +202,17 @@ def atempo_chain(speed):
 
 def video_chain(clip, info, idx):
     f = []
+    hold = clip.get("hold")
+    if hold:
+        # 첫 장면 한 장을 계속 반복해서 멈춘 화면을 만든다.
+        f.append(f"trim=end_frame=1,loop=loop=-1:size=1:start=0,setpts=N/({FPS}*TB)")
     # 아이폰 HDR(HLG/PQ)을 그대로 줄이면 색이 바래니 일반 색으로 변환한다.
     if info["transfer"] in ("arib-std-b67", "smpte2084"):
         f.append(f"zscale=tin={info['transfer']}:min=bt2020nc:pin=bt2020:t=linear:npl=100,"
                  "format=gbrpf32le,zscale=p=bt709,tonemap=hable:desat=0,"
                  "zscale=t=bt709:m=bt709:r=tv,format=yuv420p")
     speed = clip.get("speed", 1.0)
-    if speed != 1.0:
+    if speed != 1.0 and not hold:
         f.append(f"setpts=PTS/{speed}")
     zoom = clip.get("zoom", 1.0)
     zw, zh = int(W * zoom) // 2 * 2, int(H * zoom) // 2 * 2
@@ -234,6 +239,8 @@ def video_chain(clip, info, idx):
                  f"scale={pw}:{ph}:flags=neighbor[hp{tag}];"
                  f"[hm{tag}][hp{tag}]overlay={px}:{py}")
     f.append(f"fps={FPS},setsar=1,format=yuv420p")
+    if hold:
+        f.append(f"trim=duration={hold},setpts=PTS-STARTPTS")
     return ",".join(f)
 
 
@@ -253,14 +260,18 @@ def build(plan, tmp, still=None, out_path=None):
         start = clip.get("start", 0.0)
         end = clip.get("end") or info["duration"]
         speed = clip.get("speed", 1.0)
-        length = (end - start) / speed
+        hold = clip.get("hold")
+        length = hold if hold else (end - start) / speed
         total += length
 
         vi = next_index()
-        inputs += ["-ss", f"{start}", "-to", f"{end}", "-i", src]
+        if hold:
+            inputs += ["-ss", f"{start}", "-i", src]
+        else:
+            inputs += ["-ss", f"{start}", "-to", f"{end}", "-i", src]
         chains.append(f"[{vi}:v]{video_chain(clip, info, i)}[v{i}]")
 
-        if info["audio"] and not clip.get("mute"):
+        if info["audio"] and not clip.get("mute") and not hold:
             a = [f"[{vi}:a]aresample=48000,aformat=channel_layouts=stereo"]
             if speed != 1.0:
                 a.append(atempo_chain(speed))
